@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 sentinel.db
 .venv/
+node_modules/
