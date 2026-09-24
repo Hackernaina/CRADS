@@ -1,0 +1,20 @@
+{
+  "name": "crads",
+  "version": "0.1.0",
+  "description": "CRADS OpenAPI and Swagger endpoint inventory",
+  "main": "src/index.js",
+  "bin": {
+    "crads": "bin/crads.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "crads"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "license": "MIT"
+}
