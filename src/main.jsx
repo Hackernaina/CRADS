@@ -204,6 +204,7 @@ function ScanPage({ setPage }) {
   const [drag, setDrag] = useState(false);
   const [file, setFile] = useState(null);
   const [fileError, setFileError] = useState("");
+  const [checks, setChecks] = useState([true, true, true, false]);
   const fileInput = useRef(null);
 
   const selectFile = (nextFile) => {
@@ -269,7 +270,25 @@ function ScanPage({ setPage }) {
         <h3>Configure security tests</h3>
         <p>Select which controlled checks should run against the authorized sandbox target.</p>
         <div className="check-list">
-          {["Authorization / BOLA","Sensitive data exposure","Authentication misconfiguration","Rate limiting"].map((x,i)=><label key={x}><input type="checkbox" defaultChecked={i<3}/><span><b>{x}</b><small>{["Cross-user object access","Sensitive response fields","Missing auth controls","Controlled request bursts"][i]}</small></span><span className={`toggle ${i<3?"on":""}`}></span></label>)}
+          {["Authorization / BOLA","Sensitive data exposure","Authentication misconfiguration","Rate limiting"].map((x,i)=><label key={x}>
+            <input
+              type="checkbox"
+              checked={checks[i]}
+              onChange={() => setChecks((current) => current.map((enabled, index) => index === i ? !enabled : enabled))}
+            />
+            <span><b>{x}</b><small>{["Cross-user object access","Sensitive response fields","Missing auth controls","Controlled request bursts"][i]}</small></span>
+            <button
+              type="button"
+              className={`toggle ${checks[i] ? "on" : ""}`}
+              aria-label={`${checks[i] ? "Disable" : "Enable"} ${x}`}
+              aria-pressed={checks[i]}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setChecks((current) => current.map((enabled, index) => index === i ? !enabled : enabled));
+              }}
+            />
+          </label>)}
         </div>
       </section>
     </div>
