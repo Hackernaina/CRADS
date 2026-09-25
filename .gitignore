@@ -3,3 +3,4 @@ __pycache__/
 sentinel.db
 .venv/
 node_modules/
+dist/
