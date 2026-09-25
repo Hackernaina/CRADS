@@ -48,8 +48,62 @@ def test_invalid(bad):
 
 
 def test_broken_ref_warns():
-    inv = ingest('{"openapi":"3.0.0","paths":{"/a":{"get":{"parameters":[{"$ref":"#/nope"}]}}}}')
+    inv = ingest('{"openapi":"3.0.0","info":{"title":"T","version":"1"},"paths":{"/a":{"get":{"parameters":[{"$ref":"#/nope"}]}}}}')
     assert any("Broken $ref" in w for w in inv.warnings)
+
+
+def test_preserves_all_media_types_and_required_form_fields():
+    inv = ingest("""openapi: 3.0.3
+info: {title: T, version: '1'}
+paths:
+  /multi:
+    post:
+      requestBody:
+        content:
+          application/json: {schema: {type: object}}
+          application/xml: {schema: {type: string}}
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json: {schema: {type: object}}
+            text/plain: {schema: {type: string}}
+  /form:
+    post:
+      consumes: [multipart/form-data]
+      parameters:
+        - {name: avatar, in: formData, type: string, required: true}
+        - {name: note, in: formData, type: string}
+      responses: {'204': {description: done}}
+""")
+    multi = next(e for e in inv.endpoints if e.path == "/multi")
+    assert multi.request_body["content_types"] == ["application/json", "application/xml"]
+    assert multi.request_body["content"]["application/xml"]["schema"]["type"] == "string"
+    assert multi.responses["200"]["content_types"] == ["application/json", "text/plain"]
+    form = next(e for e in inv.endpoints if e.path == "/form")
+    assert form.request_body is None
+
+
+def test_preserves_required_swagger_form_fields():
+    inv = ingest("""swagger: '2.0'
+info: {title: T, version: '1'}
+paths:
+  /form:
+    post:
+      consumes: [multipart/form-data]
+      parameters:
+        - {name: avatar, in: formData, type: string, required: true}
+        - {name: note, in: formData, type: string}
+      responses: {'204': {description: done}}
+""")
+    form = next(e for e in inv.endpoints if e.path == "/form")
+    assert form.request_body["required"] is True
+    assert form.request_body["schema"]["required"] == ["avatar"]
+
+
+def test_requires_info_metadata():
+    with pytest.raises(SpecError, match="info.title"):
+        ingest("openapi: 3.0.3\ninfo: {}\npaths: {}")
 
 
 def test_api(tmp_path, monkeypatch):

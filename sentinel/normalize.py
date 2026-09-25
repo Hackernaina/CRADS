@@ -100,20 +100,26 @@ def _params(shared, own, v2, consumes):
     merged = {(p.get("name"), p.get("in")): p for p in shared + own if isinstance(p, dict)}
     params, body = [], None
     form_props: dict[str, Any] = {}
+    form_required: list[str] = []
     for p in merged.values():
         loc = p.get("in")
+        if not p.get("name") or loc not in {"path", "query", "header", "cookie", "body", "formData"}:
+            continue
         if v2 and loc == "body":
             body = {"required": bool(p.get("required")), "content_types": consumes,
                     "schema": p.get("schema", {})}
         elif v2 and loc == "formData":
             form_props[p["name"]] = {k: v for k, v in p.items() if k not in ("name", "in", "required")}
+            if p.get("required"):
+                form_required.append(p["name"])
         else:
             schema = p.get("schema") or {k: p[k] for k in ("type", "format", "enum", "items") if k in p}
             params.append(Param(name=p.get("name", ""), location=loc or "query",
                                 required=bool(p.get("required")) or loc == "path", schema=schema))
     if form_props:
-        body = {"required": False, "content_types": consumes,
-                "schema": {"type": "object", "properties": form_props}}
+        body = {"required": bool(form_required), "content_types": consumes,
+                "schema": {"type": "object", "properties": form_props,
+                           "required": form_required}}
     return params, body
 
 
@@ -121,9 +127,16 @@ def _body_v3(rb):
     if not isinstance(rb, dict):
         return None
     content = rb.get("content") or {}
-    first = next(iter(content.values()), {}) or {}
+    normalized = {
+        media_type: {"schema": value.get("schema", {}),
+                     "example": value.get("example"),
+                     "examples": value.get("examples")}
+        for media_type, value in content.items()
+        if isinstance(value, dict)
+    }
+    first = next(iter(normalized.values()), {})
     return {"required": bool(rb.get("required")), "content_types": list(content),
-            "schema": first.get("schema", {})}
+            "content": normalized, "schema": first.get("schema", {})}
 
 
 def _responses(resps, v2, produces):
@@ -133,10 +146,26 @@ def _responses(resps, v2, produces):
             continue
         if v2:
             schema = resp.get("schema", {})
+            content = {
+                media_type: {"schema": schema}
+                for media_type in produces
+            } if schema else {}
         else:
             content = resp.get("content") or {}
-            schema = (next(iter(content.values()), {}) or {}).get("schema", {})
-        out[str(status)] = {"description": resp.get("description", ""), "schema": schema}
+            content = {
+                media_type: {"schema": value.get("schema", {}),
+                              "example": value.get("example"),
+                              "examples": value.get("examples")}
+                for media_type, value in content.items()
+                if isinstance(value, dict)
+            }
+            schema = next(iter(content.values()), {}).get("schema", {})
+        out[str(status)] = {
+            "description": resp.get("description", ""),
+            "schema": schema,
+            "content_types": list(content),
+            "content": content,
+        }
     return out
 
 

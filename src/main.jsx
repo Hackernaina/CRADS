@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity, AlertTriangle, ArrowUpRight, Bot, CheckCircle2, ChevronRight,
@@ -202,17 +202,67 @@ function Dashboard({ setPage, selectedFinding, setSelectedFinding }) {
 
 function ScanPage({ setPage }) {
   const [drag, setDrag] = useState(false);
-  const [uploaded, setUploaded] = useState(false);
+  const [file, setFile] = useState(null);
+  const [fileError, setFileError] = useState("");
+  const [checks, setChecks] = useState([true, true, true, false]);
+  const fileInput = useRef(null);
+
+  const selectFile = (nextFile) => {
+    if (!nextFile) return;
+    const validExtension = /\.(json|ya?ml)$/i.test(nextFile.name);
+    if (!validExtension) {
+      setFile(null);
+      setFileError("Choose an OpenAPI or Swagger JSON, YAML, or YML file.");
+      return;
+    }
+    if (nextFile.size > 10 * 1024 * 1024) {
+      setFile(null);
+      setFileError("The specification must be 10 MB or smaller.");
+      return;
+    }
+    setFile(nextFile);
+    setFileError("");
+  };
+
+  const openFilePicker = () => fileInput.current?.click();
+
   return <main className="content">
     <div className="scan-layout">
       <section className="panel scan-card">
         <div className="section-number">01</div>
         <h3>Provide your API definition</h3>
         <p>Upload an OpenAPI / Swagger JSON or YAML file. Live traffic support can be connected later.</p>
-        <div className={drag ? "dropzone drag" : "dropzone"} onDragEnter={()=>setDrag(true)} onDragLeave={()=>setDrag(false)} onDrop={()=>{setDrag(false);setUploaded(true)}} onClick={()=>setUploaded(true)}>
-          {uploaded ? <><div className="upload-success"><CheckCircle2 size={26}/></div><strong>openapi-demo.yaml</strong><span>Specification loaded · 42 endpoints discovered</span><button className="small-btn" onClick={(e)=>{e.stopPropagation();setUploaded(false)}}>Replace file</button></> :
-          <><div className="upload-icon"><CloudUpload size={26}/></div><strong>Drop your OpenAPI file here</strong><span>or click to browse · JSON, YAML up to 10 MB</span></>}
+        <input
+          ref={fileInput}
+          className="file-input"
+          type="file"
+          accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml"
+          onChange={(event) => {
+            selectFile(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        <div
+          className={drag ? "dropzone drag" : "dropzone"}
+          onDragEnter={(event) => { event.preventDefault(); setDrag(true); }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDrag(false);
+            selectFile(event.dataTransfer.files?.[0]);
+          }}
+          onClick={openFilePicker}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") openFilePicker();
+          }}
+        >
+          {file ? <><div className="upload-success"><CheckCircle2 size={26}/></div><strong>{file.name}</strong><span>Specification selected · ready to scan</span><button className="small-btn" onClick={(event)=>{event.stopPropagation();openFilePicker();}}>Replace file</button></> :
+          <><div className="upload-icon"><CloudUpload size={26}/></div><strong>Choose your OpenAPI file</strong><span>Click to browse or drop JSON, YAML, or YML · up to 10 MB</span></>}
         </div>
+        {fileError && <p className="upload-error" role="alert">{fileError}</p>}
       </section>
 
       <section className="panel scan-card">
@@ -220,7 +270,25 @@ function ScanPage({ setPage }) {
         <h3>Configure security tests</h3>
         <p>Select which controlled checks should run against the authorized sandbox target.</p>
         <div className="check-list">
-          {["Authorization / BOLA","Sensitive data exposure","Authentication misconfiguration","Rate limiting"].map((x,i)=><label key={x}><input type="checkbox" defaultChecked={i<3}/><span><b>{x}</b><small>{["Cross-user object access","Sensitive response fields","Missing auth controls","Controlled request bursts"][i]}</small></span><span className={`toggle ${i<3?"on":""}`}></span></label>)}
+          {["Authorization / BOLA","Sensitive data exposure","Authentication misconfiguration","Rate limiting"].map((x,i)=><label key={x}>
+            <input
+              type="checkbox"
+              checked={checks[i]}
+              onChange={() => setChecks((current) => current.map((enabled, index) => index === i ? !enabled : enabled))}
+            />
+            <span><b>{x}</b><small>{["Cross-user object access","Sensitive response fields","Missing auth controls","Controlled request bursts"][i]}</small></span>
+            <button
+              type="button"
+              className={`toggle ${checks[i] ? "on" : ""}`}
+              aria-label={`${checks[i] ? "Disable" : "Enable"} ${x}`}
+              aria-pressed={checks[i]}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setChecks((current) => current.map((enabled, index) => index === i ? !enabled : enabled));
+              }}
+            />
+          </label>)}
         </div>
       </section>
     </div>

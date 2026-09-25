@@ -41,4 +41,9 @@ def load_spec(raw: bytes | str) -> dict[str, Any]:
         raise SpecError("Missing 'openapi: 3.x' or 'swagger: 2.0' field")
     if not isinstance(doc.get("paths"), dict):
         raise SpecError("Spec has no 'paths' object")
+    info = doc.get("info")
+    if not isinstance(info, dict) or not isinstance(info.get("title"), str) or not info["title"].strip():
+        raise SpecError("Spec requires info.title")
+    if not isinstance(info.get("version"), str) or not info["version"].strip():
+        raise SpecError("Spec requires info.version")
     return doc
